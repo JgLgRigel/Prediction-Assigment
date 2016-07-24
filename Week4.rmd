@@ -1,0 +1,190 @@
+#Prediction Assigment
+##Data Science Specialization - Practical Machine Learning
+##Juan Guillermo López Guzmán
+
+First we have to load the required libraries for build our prediction model
+
+```{r warning=FALSE,message=FALSE}       
+        library(caret)
+        library(dplyr)
+```
+
+After we download the database into the local work directory we load to R and show the variables like a first approach to our database
+```{r}        
+        db<-read.csv("pml-training.csv")
+        names(db)
+```
+
+Fist, we will delete the id variable that isn't usefull for the model then we check the quality of the database
+```{r}        
+        db<-db[-c(1:8)]
+        summary(db)
+```
+
+There is a lot of variables incompletes so we are identifying them and deleting
+```{r}        
+        ##using vector to clean database        
+        vector<-c()        
+        ##loop to identify the NA variables
+        for(i in names(db)){
+                if(sum(is.na(db[i]))<19216){
+                        vector<-c(vector,i)
+                }
+        }        
+        db<-db[vector]
+        ##loop to identify the empty variables
+        vector<-c()        
+        for(i in names(db)){
+                if(sum(db[i]=="")<19216){
+                        vector<-c(vector,i)
+                }
+        }
+        db<-db[vector]
+```
+
+Now we obtained a clean database with more usefull predictors thus we can cut the database into the training, testing and validation sets
+```{r}
+        inTrain<-createDataPartition(db$classe,p=0.8,list=FALSE)
+        training<-db[inTrain,]
+        testing<-db[-inTrain,]
+        inTrain<-createDataPartition(training$classe,p=0.8,list=FALSE)
+        validating<-training[-inTrain,]
+        training<-training[inTrain,]
+```
+
+In order to pick the best method and predictors we will use cross validation then we have to cut the training set in equaly sized folds for each method and preserve a fold with indepedent data for calculate the error or accuracy
+```{r}
+        ##prepare training set for cross validation
+        training$group<-rep(1:16,len=length(training$classe))
+```
+
+We saw in the database summary four variable subgroups: belt, arm, dumbell and forearm so we are fitting three types of models in the total of variables and each mentioned subgroup
+
+Is important to understand that we can't use regresion models for this kind of classification models so we choose: random forest, boosting and decission trees like the models to probe
+```{r message=FALSE,warning=FALSE,results='hide'}
+        ##fit random forest models to assigned folds
+        train_tmp<-filter(training,group==1)[-53]
+        mod1<-train(classe~.,method="rf",prox=TRUE,data=train_tmp)
+        train_tmp<-filter(training,group==2)[-53]
+        train_tmp<-data.frame(select(train_tmp,contains("_belt")),classe=train_tmp$classe)
+        mod2<-train(classe~.,method="rf",prox=TRUE,data=train_tmp)
+        train_tmp<-filter(training,group==3)[-53]
+        train_tmp<-data.frame(select(train_tmp,contains("_arm")),classe=train_tmp$classe)
+        mod3<-train(classe~.,method="rf",prox=TRUE,data=train_tmp)
+        train_tmp<-filter(training,group==4)[-53]
+        train_tmp<-data.frame(select(train_tmp,contains("_dumbbell")),classe=train_tmp$classe)
+        mod4<-train(classe~.,method="rf",prox=TRUE,data=train_tmp)
+        train_tmp<-filter(training,group==5)[-53]
+        train_tmp<-data.frame(select(train_tmp,contains("_forearm")),classe=train_tmp$classe)
+        mod5<-train(classe~.,method="rf",prox=TRUE,data=train_tmp)
+        ##fit boosting models to assigned folds
+        train_tmp<-filter(training,group==6)[-53]
+        mod6<-train(classe~.,method="gbm",data=train_tmp)
+        train_tmp<-filter(training,group==7)[-53]
+        train_tmp<-data.frame(select(train_tmp,contains("_belt")),classe=train_tmp$classe)
+        mod7<-train(classe~.,method="gbm",data=train_tmp)
+        train_tmp<-filter(training,group==8)[-53]
+        train_tmp<-data.frame(select(train_tmp,contains("_arm")),classe=train_tmp$classe)
+        mod8<-train(classe~.,method="gbm",data=train_tmp)
+        train_tmp<-filter(training,group==9)[-53]
+        train_tmp<-data.frame(select(train_tmp,contains("_dumbbell")),classe=train_tmp$classe)
+        mod9<-train(classe~.,method="gbm",data=train_tmp)
+        train_tmp<-filter(training,group==10)[-53]
+        train_tmp<-data.frame(select(train_tmp,contains("_forearm")),classe=train_tmp$classe)
+        mod10<-train(classe~.,method="gbm",data=train_tmp)
+        ##fit decission tree models to assigned folds
+        train_tmp<-filter(training,group==11)[-53]
+        mod11<-train(classe~.,method="rpart",data=train_tmp)
+        train_tmp<-filter(training,group==12)[-53]
+        train_tmp<-data.frame(select(train_tmp,contains("_belt")),classe=train_tmp$classe)
+        mod12<-train(classe~.,method="rpart",data=train_tmp)
+        train_tmp<-filter(training,group==13)[-53]
+        train_tmp<-data.frame(select(train_tmp,contains("_arm")),classe=train_tmp$classe)
+        mod13<-train(classe~.,method="rpart",data=train_tmp)
+        train_tmp<-filter(training,group==14)[-53]
+        train_tmp<-data.frame(select(train_tmp,contains("_dumbbell")),classe=train_tmp$classe)
+        mod14<-train(classe~.,method="rpart",data=train_tmp)
+        train_tmp<-filter(training,group==15)[-53]
+        train_tmp<-data.frame(select(train_tmp,contains("_forearm")),classe=train_tmp$classe)
+        mod15<-train(classe~.,method="rpart",data=train_tmp)
+```
+
+Like we said to calculate the out of sample error in each model we are using an indepedent fold and create a matrix with all the predicted values and compare them with the real values
+```{r}        
+        train_tmp<-filter(training,group==16)[-53]
+        pred_matrix<-data.frame(classe=train_tmp$classe,pred1=predict(mod1,train_tmp),pred2=predict(mod2,train_tmp),
+                pred3=predict(mod3,train_tmp),pred4=predict(mod4,train_tmp),pred5=predict(mod5,
+                train_tmp),pred6=predict(mod6,train_tmp),pred7=predict(mod7,train_tmp),pred8=predict(mod8,train_tmp),
+                pred9=predict(mod9,train_tmp),pred10=predict(mod10,train_tmp),pred11=predict(mod11,train_tmp),
+                pred12=predict(mod12,train_tmp),pred13=predict(mod13,train_tmp),pred14=predict(mod14,train_tmp),
+                pred15=predict(mod15,train_tmp))
+```
+
+Afterthat we can observe the behavior of the models in the graph below
+```{r}        
+        pairs(pred_matrix)
+```
+
+This show how decission tree models isn't the most accurate for this kind of problems; the random forest and boosting models shows better performance in their five variances. To see this more quantitatyvely we are calculating an accuracy vector and show it
+```{r}        
+        acc_vector<-data.frame(
+                pred1=sum(diag(table(pred_matrix$pred1,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred2=sum(diag(table(pred_matrix$pred2,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred3=sum(diag(table(pred_matrix$pred3,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred4=sum(diag(table(pred_matrix$pred4,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred5=sum(diag(table(pred_matrix$pred5,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred6=sum(diag(table(pred_matrix$pred6,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred7=sum(diag(table(pred_matrix$pred7,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred8=sum(diag(table(pred_matrix$pred8,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred9=sum(diag(table(pred_matrix$pred9,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred10=sum(diag(table(pred_matrix$pred10,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred11=sum(diag(table(pred_matrix$pred11,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred12=sum(diag(table(pred_matrix$pred12,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred13=sum(diag(table(pred_matrix$pred13,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred14=sum(diag(table(pred_matrix$pred14,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred15=sum(diag(table(pred_matrix$pred15,pred_matrix$classe)))/length(pred_matrix$classe))
+        acc_vector
+```
+
+In conclusion, the random forest and boosting models aplied to all the variable have better accuracy with `r acc_vector[1]` and `r acc_vector[6]` respectively so we will conserve and tune them with the testing set
+```{r}
+        mod1<-mod1        
+        mod2<-mod6
+```
+
+Can blended models improve the accuracy? We are answering this question using cross validation. We are spliting the testing set in order to train two blended models using the same methods: random forest and boosting
+```{r results='hide'}
+        testing$group<-rep(1:3,len=length(testing$classe))
+        test_tmp<-filter(testing,group==1)[-53]
+        pred_matrix<-data.frame(classe=test_tmp$classe,pred1=predict(mod1,test_tmp),pred2=predict(mod2,test_tmp))
+        mod3<-train(classe~.,method="rf",prox=TRUE,data=pred_matrix)
+        test_tmp<-filter(testing,group==2)[-53]
+        pred_matrix<-data.frame(classe=test_tmp$classe,pred1=predict(mod1,test_tmp),pred2=predict(mod2,test_tmp))
+        mod4<-train(classe~.,method="gbm",data=pred_matrix)
+```
+
+The third fold will be use for run the models and see the blended predictors behavior against the simple predictors:
+```{r}
+        test_tmp<-filter(testing,group==3)[-53]
+        pred_matrix<-data.frame(classe=test_tmp$classe,pred1=predict(mod1,test_tmp),pred2=predict(mod2,test_tmp))
+        pred_matrix<-data.frame(pred_matrix,pred3=predict(mod3,pred_matrix),pred4=predict(mod4,pred_matrix))
+        pairs(pred_matrix)
+```
+
+Aparently the boosting model aplied over the random forest and boosting simple predictors have a large correlation with the real values. We are calculating an accuracy vector to validate this hypothesis
+```{r}
+        acc_vector<-data.frame(
+                pred1=sum(diag(table(pred_matrix$pred1,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred2=sum(diag(table(pred_matrix$pred2,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred3=sum(diag(table(pred_matrix$pred3,pred_matrix$classe)))/length(pred_matrix$classe),
+                pred4=sum(diag(table(pred_matrix$pred4,pred_matrix$classe)))/length(pred_matrix$classe))
+        acc_vector
+```
+
+The blended model have better performance with a `r acc_vector[4]` accuracy so our final model will be apply in the validation set to see calulate out of sample error
+```{r}
+        pred_final<-predict(mod4,data.frame(pred1=predict(mod1,validating),pred2=predict(mod2,validating)))
+        error<-1-sum(diag(table(pred_final,validating$classe)))/length(validating$classe)
+```
+
+Then the out of sample error obtained is the `r error`
